@@ -18,12 +18,16 @@ class OreSweeper : Listener {
         val block = event.block
         if (block.type !in SweepUtil.ORE_TYPES) return
 
-        val tool = event.player.inventory.itemInMainHand
+        val player = event.player
+        val tool = player.inventory.itemInMainHand
         if (tool.type !in SweepUtil.PICKAXE_TYPES) return
+        if (!SweepUtil.toolHasDurability(tool)) return
 
         SweepUtil.IN_SWEEP.set(true)
         try {
-            SweepUtil.sweepConnected(block, event.player, SweepUtil.ORE_TYPES, MAX_ORES)
+            SweepUtil.sweepConnected(block, player, SweepUtil.ORE_TYPES, MAX_ORES)
+        } catch (t: Throwable) {
+            player.server.logger.warning("OreSweeper error at ${block.location}: ${t.message}")
         } finally {
             SweepUtil.IN_SWEEP.set(false)
         }

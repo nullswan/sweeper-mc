@@ -28,11 +28,14 @@ class CropSweeper : Listener {
 
         SweepUtil.IN_SWEEP.set(true)
         try {
+            replant(block, cropType)
+
             for (dx in -RADIUS..RADIUS) {
                 for (dz in -RADIUS..RADIUS) {
                     val target = block.getRelative(dx, 0, dz)
                     if (target == block) continue
                     if (target.type != cropType) continue
+                    if (!target.world.isChunkLoaded(target.x shr 4, target.z shr 4)) continue
 
                     val data = target.blockData as? Ageable ?: continue
                     if (data.age < data.maximumAge) continue
@@ -42,6 +45,8 @@ class CropSweeper : Listener {
                     }
                 }
             }
+        } catch (t: Throwable) {
+            player.server.logger.warning("CropSweeper error at ${block.location}: ${t.message}")
         } finally {
             SweepUtil.IN_SWEEP.set(false)
         }
@@ -56,6 +61,12 @@ class CropSweeper : Listener {
             Material.NETHER_WART -> Material.NETHER_WART
             else -> return
         }
+        val below = block.getRelative(0, -1, 0).type
+        val soilOk = when (seedType) {
+            Material.NETHER_WART -> below == Material.SOUL_SAND
+            else -> below == Material.FARMLAND
+        }
+        if (!soilOk) return
         block.type = seedType
     }
 }

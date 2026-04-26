@@ -3,10 +3,23 @@ package com.nullswan.sweeper
 import org.bukkit.Material
 import org.bukkit.block.Block
 import org.bukkit.entity.Player
+import org.bukkit.inventory.ItemStack
+import org.bukkit.inventory.meta.Damageable
 
 object SweepUtil {
 
     val IN_SWEEP = ThreadLocal.withInitial { false }
+
+    private const val DURABILITY_RESERVE = 5
+
+    fun toolHasDurability(tool: ItemStack?): Boolean {
+        if (tool == null || tool.type == Material.AIR) return false
+        val meta = tool.itemMeta as? Damageable ?: return true
+        if (!meta.hasMaxDamage() && tool.type.maxDurability <= 0) return true
+        val max = if (meta.hasMaxDamage()) meta.maxDamage else tool.type.maxDurability.toInt()
+        val remaining = max - meta.damage
+        return remaining > DURABILITY_RESERVE
+    }
 
     val LOG_TYPES = setOf(
         Material.OAK_LOG, Material.SPRUCE_LOG, Material.BIRCH_LOG,
@@ -66,8 +79,11 @@ object SweepUtil {
         addMatchingNeighbors(start, type, visited, queue, match)
 
         while (queue.isNotEmpty() && broken.size < maxBlocks) {
+            if (!toolHasDurability(player.inventory.itemInMainHand)) break
+
             val b = queue.removeFirst()
             if (b.type != type) continue
+            if (!b.world.isChunkLoaded(b.x shr 4, b.z shr 4)) continue
 
             if (!player.breakBlock(b)) break
             broken.add(b)
