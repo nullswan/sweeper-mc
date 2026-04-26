@@ -26,7 +26,6 @@ class TreeSweeper : Listener {
         val player = event.player
         val tool = player.inventory.itemInMainHand
         if (tool.type !in SweepUtil.AXE_TYPES) return
-        if (!SweepUtil.toolHasDurability(tool)) return
 
         SweepUtil.IN_SWEEP.set(true)
         try {
