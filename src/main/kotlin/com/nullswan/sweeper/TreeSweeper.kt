@@ -12,6 +12,8 @@ class TreeSweeper : Listener {
     companion object {
         private const val MAX_LOGS = 48
         private const val MAX_LEAVES = 400
+        private const val LEAF_RADIUS = 4
+        private const val LEAF_VERTICAL = 3
     }
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
@@ -28,8 +30,11 @@ class TreeSweeper : Listener {
 
         SweepUtil.IN_SWEEP.set(true)
         try {
-            val brokenLogs = SweepUtil.sweepConnected(block, player, SweepUtil.LOG_TYPES, MAX_LOGS)
-            clearNearbyLeaves(block, brokenLogs, player)
+            val brokenLogs = SweepUtil.sweepConnected(
+                block, player, SweepUtil.LOG_TYPES, MAX_LOGS,
+                damageTool = false, faceOnly = true
+            )
+            clearLeavesNearLogs(block, brokenLogs, player)
         } catch (t: Throwable) {
             player.server.logger.warning("TreeSweeper error at ${block.location}: ${t.message}")
         } finally {
@@ -37,42 +42,41 @@ class TreeSweeper : Listener {
         }
     }
 
-    private fun clearNearbyLeaves(origin: Block, brokenLogs: List<Block>, player: org.bukkit.entity.Player) {
-        var minX = origin.x; var maxX = origin.x
-        var minY = origin.y; var maxY = origin.y
-        var minZ = origin.z; var maxZ = origin.z
-        for (log in brokenLogs) {
-            minX = minOf(minX, log.x); maxX = maxOf(maxX, log.x)
-            minY = minOf(minY, log.y); maxY = maxOf(maxY, log.y)
-            minZ = minOf(minZ, log.z); maxZ = maxOf(maxZ, log.z)
-        }
-
+    private fun clearLeavesNearLogs(origin: Block, brokenLogs: List<Block>, player: org.bukkit.entity.Player) {
         val world = origin.world
         val tool = player.inventory.itemInMainHand
+        val visited = HashSet<Long>()
         var broken = 0
-        for (x in (minX - 6)..(maxX + 6)) {
-            for (y in (minY - 2)..(maxY + 4)) {
-                for (z in (minZ - 6)..(maxZ + 6)) {
-                    if (broken >= MAX_LEAVES) return
-                    if (!world.isChunkLoaded(x shr 4, z shr 4)) continue
-                    val leaf = world.getBlockAt(x, y, z)
-                    if (leaf.type !in SweepUtil.LEAF_TYPES) continue
 
-                    val drops = try {
-                        leaf.getDrops(tool)
-                    } catch (_: Throwable) {
-                        continue
-                    }
-                    leaf.type = Material.AIR
-                    broken++
-                    for (drop in drops) {
-                        val leftover = player.inventory.addItem(drop)
-                        for (remaining in leftover.values) {
-                            world.dropItemNaturally(leaf.location, remaining)
+        val centers = ArrayList<Block>(brokenLogs.size + 1)
+        centers.add(origin)
+        centers.addAll(brokenLogs)
+
+        for (center in centers) {
+            if (broken >= MAX_LEAVES) return
+            for (dx in -LEAF_RADIUS..LEAF_RADIUS) {
+                for (dy in -LEAF_VERTICAL..LEAF_VERTICAL) {
+                    for (dz in -LEAF_RADIUS..LEAF_RADIUS) {
+                        if (broken >= MAX_LEAVES) return
+                        val nx = center.x + dx; val ny = center.y + dy; val nz = center.z + dz
+                        if (!visited.add(SweepUtil.blockKey(nx, ny, nz))) continue
+                        if (!world.isChunkLoaded(nx shr 4, nz shr 4)) continue
+                        val leaf = world.getBlockAt(nx, ny, nz)
+                        if (leaf.type !in SweepUtil.LEAF_TYPES) continue
+
+                        val drops = try { leaf.getDrops(tool) } catch (_: Throwable) { continue }
+                        leaf.type = Material.AIR
+                        broken++
+                        for (drop in drops) {
+                            val leftover = player.inventory.addItem(drop)
+                            for (remaining in leftover.values) {
+                                world.dropItemNaturally(leaf.location, remaining)
+                            }
                         }
                     }
                 }
             }
         }
     }
+
 }

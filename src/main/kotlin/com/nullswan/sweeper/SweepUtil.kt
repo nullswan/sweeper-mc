@@ -69,49 +69,78 @@ object SweepUtil {
         Material.FLOWERING_AZALEA_LEAVES, Material.PALE_OAK_LEAVES
     )
 
-    fun sweepConnected(start: Block, player: Player, match: Set<Material>, maxBlocks: Int): List<Block> {
+    fun sweepConnected(
+        start: Block, player: Player, match: Set<Material>, maxBlocks: Int,
+        damageTool: Boolean = true, faceOnly: Boolean = false
+    ): List<Block> {
         val type = start.type
         val visited = HashSet<Long>()
         visited.add(blockKey(start))
         val broken = mutableListOf<Block>()
+        val tool = player.inventory.itemInMainHand
 
         val queue = ArrayDeque<Block>()
-        addMatchingNeighbors(start, type, visited, queue, match)
+        addMatchingNeighbors(start, type, visited, queue, match, faceOnly)
 
         while (queue.isNotEmpty() && broken.size < maxBlocks) {
-            if (!toolHasDurability(player.inventory.itemInMainHand)) break
+            if (damageTool && !toolHasDurability(player.inventory.itemInMainHand)) break
 
             val b = queue.removeFirst()
             if (b.type != type) continue
             if (!b.world.isChunkLoaded(b.x shr 4, b.z shr 4)) continue
 
-            if (!player.breakBlock(b)) break
+            if (damageTool) {
+                if (!player.breakBlock(b)) break
+            } else {
+                breakAndGive(b, tool, player)
+            }
             broken.add(b)
 
-            addMatchingNeighbors(b, type, visited, queue, match)
+            addMatchingNeighbors(b, type, visited, queue, match, faceOnly)
         }
         return broken
     }
 
+    fun breakAndGive(block: Block, tool: ItemStack, player: Player) {
+        val drops = try { block.getDrops(tool) } catch (_: Throwable) { emptyList() }
+        block.type = Material.AIR
+        for (drop in drops) {
+            val leftover = player.inventory.addItem(drop)
+            for (remaining in leftover.values) {
+                block.world.dropItemNaturally(block.location, remaining)
+            }
+        }
+    }
+
+    private val FACE_OFFSETS = listOf(
+        intArrayOf(-1, 0, 0), intArrayOf(1, 0, 0),
+        intArrayOf(0, -1, 0), intArrayOf(0, 1, 0),
+        intArrayOf(0, 0, -1), intArrayOf(0, 0, 1),
+    )
+
     private fun addMatchingNeighbors(
         block: Block, type: Material,
         visited: HashSet<Long>, queue: ArrayDeque<Block>,
-        match: Set<Material>
+        match: Set<Material>, faceOnly: Boolean
     ) {
         val world = block.world
         val x = block.x; val y = block.y; val z = block.z
-        for (dx in -1..1) {
-            for (dy in -1..1) {
-                for (dz in -1..1) {
-                    if (dx == 0 && dy == 0 && dz == 0) continue
-                    val nx = x + dx; val ny = y + dy; val nz = z + dz
-                    if (!world.isChunkLoaded(nx shr 4, nz shr 4)) continue
-                    if (!visited.add(blockKey(nx, ny, nz))) continue
-                    val neighbor = world.getBlockAt(nx, ny, nz)
-                    if (neighbor.type in match) {
-                        queue.add(neighbor)
-                    }
-                }
+        if (faceOnly) {
+            for (off in FACE_OFFSETS) {
+                val nx = x + off[0]; val ny = y + off[1]; val nz = z + off[2]
+                if (!world.isChunkLoaded(nx shr 4, nz shr 4)) continue
+                if (!visited.add(blockKey(nx, ny, nz))) continue
+                val neighbor = world.getBlockAt(nx, ny, nz)
+                if (neighbor.type in match) queue.add(neighbor)
+            }
+        } else {
+            for (dx in -1..1) for (dy in -1..1) for (dz in -1..1) {
+                if (dx == 0 && dy == 0 && dz == 0) continue
+                val nx = x + dx; val ny = y + dy; val nz = z + dz
+                if (!world.isChunkLoaded(nx shr 4, nz shr 4)) continue
+                if (!visited.add(blockKey(nx, ny, nz))) continue
+                val neighbor = world.getBlockAt(nx, ny, nz)
+                if (neighbor.type in match) queue.add(neighbor)
             }
         }
     }
