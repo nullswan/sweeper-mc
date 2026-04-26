@@ -1,0 +1,6 @@
+name: Sweeper
+version: 1.0.0
+main: com.nullswan.sweeper.SweeperPlugin
+description: Sweep trees, ores, and crops — break connected blocks with the right tool
+author: nullswan
+api-version: '1.21'
