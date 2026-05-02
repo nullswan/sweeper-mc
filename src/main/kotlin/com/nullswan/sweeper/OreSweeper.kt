@@ -4,8 +4,9 @@ import org.bukkit.event.EventHandler
 import org.bukkit.event.EventPriority
 import org.bukkit.event.Listener
 import org.bukkit.event.block.BlockBreakEvent
+import org.bukkit.plugin.Plugin
 
-class OreSweeper : Listener {
+class OreSweeper(private val plugin: Plugin, private val debug: Boolean) : Listener {
 
     companion object {
         private const val MAX_ORES = 32
@@ -24,9 +25,10 @@ class OreSweeper : Listener {
 
         SweepUtil.IN_SWEEP.set(true)
         try {
-            SweepUtil.sweepConnected(block, player, SweepUtil.ORE_TYPES, MAX_ORES)
+            val broken = SweepUtil.sweepConnected(block, player, SweepUtil.ORE_TYPES, MAX_ORES)
+            if (debug) plugin.logger.info("[Sweep] ore ${block.type} @${block.location.toVector()} tool=${tool.type} broken=${broken.size}/${MAX_ORES}")
         } catch (t: Throwable) {
-            player.server.logger.warning("OreSweeper error at ${block.location}: ${t.message}")
+            plugin.logger.warning("OreSweeper error at ${block.location}: ${t.message}")
         } finally {
             SweepUtil.IN_SWEEP.set(false)
         }

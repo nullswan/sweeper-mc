@@ -6,8 +6,9 @@ import org.bukkit.event.EventHandler
 import org.bukkit.event.EventPriority
 import org.bukkit.event.Listener
 import org.bukkit.event.block.BlockBreakEvent
+import org.bukkit.plugin.Plugin
 
-class CropSweeper : Listener {
+class CropSweeper(private val plugin: Plugin, private val debug: Boolean) : Listener {
 
     companion object {
         private const val RADIUS = 4
@@ -27,8 +28,10 @@ class CropSweeper : Listener {
         val player = event.player
 
         SweepUtil.IN_SWEEP.set(true)
+        var broken = 0
+        var replanted = 0
         try {
-            replant(block, cropType)
+            if (replant(block, cropType)) replanted++
 
             for (dx in -RADIUS..RADIUS) {
                 for (dz in -RADIUS..RADIUS) {
@@ -41,32 +44,35 @@ class CropSweeper : Listener {
                     if (data.age < data.maximumAge) continue
 
                     if (player.breakBlock(target)) {
-                        replant(target, cropType)
+                        broken++
+                        if (replant(target, cropType)) replanted++
                     }
                 }
             }
+            if (debug) plugin.logger.info("[Sweep] crop $cropType @${block.location.toVector()} broken=$broken replanted=$replanted")
         } catch (t: Throwable) {
-            player.server.logger.warning("CropSweeper error at ${block.location}: ${t.message}")
+            plugin.logger.warning("CropSweeper error at ${block.location}: ${t.message}")
         } finally {
             SweepUtil.IN_SWEEP.set(false)
         }
     }
 
-    private fun replant(block: org.bukkit.block.Block, cropType: Material) {
+    private fun replant(block: org.bukkit.block.Block, cropType: Material): Boolean {
         val seedType = when (cropType) {
             Material.WHEAT -> Material.WHEAT
             Material.CARROTS -> Material.CARROTS
             Material.POTATOES -> Material.POTATOES
             Material.BEETROOTS -> Material.BEETROOTS
             Material.NETHER_WART -> Material.NETHER_WART
-            else -> return
+            else -> return false
         }
         val below = block.getRelative(0, -1, 0).type
         val soilOk = when (seedType) {
             Material.NETHER_WART -> below == Material.SOUL_SAND
             else -> below == Material.FARMLAND
         }
-        if (!soilOk) return
+        if (!soilOk) return false
         block.type = seedType
+        return true
     }
 }

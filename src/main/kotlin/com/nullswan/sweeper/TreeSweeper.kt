@@ -6,8 +6,9 @@ import org.bukkit.event.EventHandler
 import org.bukkit.event.EventPriority
 import org.bukkit.event.Listener
 import org.bukkit.event.block.BlockBreakEvent
+import org.bukkit.plugin.Plugin
 
-class TreeSweeper : Listener {
+class TreeSweeper(private val plugin: Plugin, private val debug: Boolean) : Listener {
 
     companion object {
         private const val MAX_LOGS = 48
@@ -33,15 +34,16 @@ class TreeSweeper : Listener {
                 block, player, SweepUtil.LOG_TYPES, MAX_LOGS,
                 damageTool = false, faceOnly = true
             )
-            clearLeavesNearLogs(block, brokenLogs, player)
+            val leavesBroken = clearLeavesNearLogs(block, brokenLogs, player)
+            if (debug) plugin.logger.info("[Sweep] tree ${block.type} @${block.location.toVector()} tool=${tool.type} logs=${brokenLogs.size}/${MAX_LOGS} leaves=${leavesBroken}/${MAX_LEAVES}")
         } catch (t: Throwable) {
-            player.server.logger.warning("TreeSweeper error at ${block.location}: ${t.message}")
+            plugin.logger.warning("TreeSweeper error at ${block.location}: ${t.message}")
         } finally {
             SweepUtil.IN_SWEEP.set(false)
         }
     }
 
-    private fun clearLeavesNearLogs(origin: Block, brokenLogs: List<Block>, player: org.bukkit.entity.Player) {
+    private fun clearLeavesNearLogs(origin: Block, brokenLogs: List<Block>, player: org.bukkit.entity.Player): Int {
         val world = origin.world
         val tool = player.inventory.itemInMainHand
         val visited = HashSet<Long>()
@@ -52,11 +54,11 @@ class TreeSweeper : Listener {
         centers.addAll(brokenLogs)
 
         for (center in centers) {
-            if (broken >= MAX_LEAVES) return
+            if (broken >= MAX_LEAVES) return broken
             for (dx in -LEAF_RADIUS..LEAF_RADIUS) {
                 for (dy in -LEAF_VERTICAL..LEAF_VERTICAL) {
                     for (dz in -LEAF_RADIUS..LEAF_RADIUS) {
-                        if (broken >= MAX_LEAVES) return
+                        if (broken >= MAX_LEAVES) return broken
                         val nx = center.x + dx; val ny = center.y + dy; val nz = center.z + dz
                         if (!visited.add(SweepUtil.blockKey(nx, ny, nz))) continue
                         if (!world.isChunkLoaded(nx shr 4, nz shr 4)) continue
@@ -76,6 +78,6 @@ class TreeSweeper : Listener {
                 }
             }
         }
+        return broken
     }
-
 }

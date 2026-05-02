@@ -1,0 +1,5 @@
+# Sweeper
+
+# Emit verbose sweep logs. Off by default — enabling is noisy under heavy
+# mining or deforestation.
+debug: false
